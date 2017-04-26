@@ -504,7 +504,7 @@ class _NormalizePathAction(argparse.Action):
 
 def _ActionShow(options, elf):
   """Show the dependency tree for this ELF"""
-  def _show(lib, depth):
+  def _show(lib, depth, only_direct=False):
     chain_libs.append(lib)
     fullpath = elf['libs'][lib]['path']
     if options.list:
@@ -512,18 +512,20 @@ def _ActionShow(options, elf):
     else:
       print('%s%s => %s' % ('    ' * depth, lib, fullpath))
 
-    new_libs = []
-    for lib in elf['libs'][lib]['needed']:
-      if lib in chain_libs:
-        if not options.list:
-          print('%s%s => !!! circular loop !!!' % ('    ' * depth, lib))
-        continue
-      if options.all or not lib in shown_libs:
-        shown_libs.add(lib)
-        new_libs.append(lib)
+    if not only_direct:
+      new_libs = []
+      for lib in elf['libs'][lib]['needed']:
+        if lib in chain_libs:
+          if not options.list:
+            print('%s%s => !!! circular loop !!!' % ('    ' * depth, lib))
+          continue
+        if options.all or not lib in shown_libs:
+          shown_libs.add(lib)
+          new_libs.append(lib)
 
-    for lib in new_libs:
-      _show(lib, depth + 1)
+      for lib in new_libs:
+        _show(lib, depth + 1)
+
     chain_libs.pop()
 
   shown_libs = set(elf['needed'])
@@ -547,7 +549,7 @@ def _ActionShow(options, elf):
   else:
     print('%s (interpreter => %s)' % (elf['path'], interp))
   for lib in new_libs:
-    _show(lib, 1)
+    _show(lib, 1, options.only_direct)
 
 
 def _ActionCopy(options, elf):
@@ -673,6 +675,9 @@ def GetParser():
   parser.add_argument('--skip-non-elfs',
                       action='store_true', default=False,
                       help='Skip plain (non-ELF) files instead of warning')
+  parser.add_argument('--only-direct',
+                      action='store_true', default=False,
+                      help='Show only direct dependencies')
   parser.add_argument('-V', '--version',
                       action='version',
                       version='lddtree by Mike Frysinger <vapier@gentoo.org>',
